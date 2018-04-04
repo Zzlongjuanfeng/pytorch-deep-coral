@@ -10,10 +10,10 @@ num_workers = 2
 gpu_ids = [0,1]
 
 # params for source dataset
-src_encoder_restore = '/home/zxf/.torch/models/resnet34-333f7ec4.pth'
-# src_encoder_restore = 'snapshots/0402_src/ADDA-source-encoder-6.pt'
-src_classifier_restore = None
-src_model_trained = False
+# src_encoder_restore = '/home/zxf/.torch/models/resnet34-333f7ec4.pth'
+src_encoder_restore = 'snapshots/0404_1e3/CORAL-source-encoder-8.pt'
+src_classifier_restore = 'snapshots/0404_1e3/CORAL-source-classifier-8.pt'
+src_model_trained = True
 CORAL_weight = 1e2
 
 # params for training network
