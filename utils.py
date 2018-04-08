@@ -67,6 +67,16 @@ def get_data_loader(name, train=True):
     elif name == "USPS":
         return get_usps(train)
 
+def cal_confusion_mat(pred, label):
+    """calculate confusion matrix of pred(tensor) and label(tensor)"""
+    pred_label = torch.stack((pred, label), dim=1)
+    con_matrix = torch.zeros((params.classes, params.classes))
+    length = pred_label.shape[0]
+
+    for i in range(length):
+        row, col = pred_label[i,0], pred_label[i,1]
+        con_matrix[row, col] += 1
+    return con_matrix
 
 def init_model(net, restore, imageNet_train=False):
     """Init models with cuda and weights."""

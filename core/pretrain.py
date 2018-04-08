@@ -7,7 +7,7 @@ import torch
 import params
 import os
 import time
-from utils import make_variable, save_model
+from utils import make_variable, save_model, cal_confusion_mat
 from logger import Logger
 
 
@@ -51,11 +51,13 @@ def train_src(encoder, classifier, src_data_loader, tgt_data_loader):
             optimizer.zero_grad()
 
             # compute loss for classification and CORAL
-            preds_src = classifier(encoder(images_src))
-            preds_tgt = classifier(encoder(images_tgt))
+            feat_src, preds_src = classifier(encoder(images_src))
+            feat_tgt, preds_tgt = classifier(encoder(images_tgt))
 
             class_loss = criterion(preds_src, labels_src)
-            CORAL_loss = CORAL(preds_src, preds_tgt)
+            CORAL_loss_fc2 = CORAL(preds_src, preds_tgt)
+            CORAL_loss_fc1 = CORAL(feat_src, feat_tgt)
+            CORAL_loss = (CORAL_loss_fc1 + CORAL_loss_fc2) / 2.0
             loss = class_loss + CORAL_loss * params.CORAL_weight
             # optimize source classifier
             loss.backward()
@@ -107,7 +109,7 @@ def eval_src(encoder, classifier, data_loader):
     # init loss and accuracy
     loss = 0
     acc = 0
-
+    con_matrix = torch.zeros((params.classes, params.classes))
     # set loss function
     criterion = nn.CrossEntropyLoss()
 
@@ -116,16 +118,25 @@ def eval_src(encoder, classifier, data_loader):
         images = make_variable(images, volatile=True)
         labels = make_variable(labels)
 
-        preds = classifier(encoder(images))
+        _, preds = classifier(encoder(images))
         loss += criterion(preds, labels).data[0]
 
         pred_cls = preds.data.max(1)[1]
         acc += pred_cls.eq(labels.data).cpu().sum()
+        con_matrix += cal_confusion_mat(pred=pred_cls, label=labels.data)
 
     loss /= len(data_loader)
     acc /= len(data_loader.dataset)
+    pred_ = torch.sum(con_matrix, dim=1)
+    label_ = torch.sum(con_matrix, dim=0)
+    for i in range(con_matrix.shape[0]):
+        pred_[i] = con_matrix[i, i] / float(pred_[i])
+        label_[i] = con_matrix[i, i] / float(label_[i])
 
     print("Avg Loss = {}, Avg Accuracy = {:2%}".format(loss, acc))
+    print(con_matrix)
+    print("pred recall:{}".format(pred_.unsqueeze(dim=1).t()))
+    print("class accuracy:{}".format(label_.unsqueeze(dim=1).t()))
     return loss, acc
 
 

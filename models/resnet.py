@@ -59,7 +59,7 @@ class Classifier(nn.Module):
         fc1_out = self.fc1(feat)
         out = F.dropout(F.relu(fc1_out), training=self.training)
         out = self.fc2(out)
-        return out
+        return fc1_out, out
 
 if __name__ == '__main__':
     path = '/home/zxf/.torch/models/resnet34-333f7ec4.pth'
