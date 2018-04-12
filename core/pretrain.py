@@ -58,7 +58,12 @@ def train_src(encoder, classifier, src_data_loader, tgt_data_loader):
             CORAL_loss_fc2 = CORAL(preds_src, preds_tgt)
             CORAL_loss_fc1 = CORAL(feat_src, feat_tgt)
             CORAL_loss = (CORAL_loss_fc1 + CORAL_loss_fc2) / 2.0
-            loss = class_loss + CORAL_loss * params.CORAL_weight
+            DAN_loss_fc2 = DAN(preds_src, preds_tgt)
+            DAN_loss_fc1 = DAN(feat_src, feat_tgt)
+            DAN_loss = (DAN_loss_fc2 + DAN_loss_fc1) / 2.0
+
+            # loss = class_loss + CORAL_loss * params.CORAL_weight
+            loss = class_loss + DAN_loss * params.DAN_weight
             # optimize source classifier
             loss.backward()
             optimizer.step()
@@ -67,15 +72,17 @@ def train_src(encoder, classifier, src_data_loader, tgt_data_loader):
             batch_time = t1 - t0
             # print step info
             if ((step + 1) % params.log_step_pre == 0):
-                print("Epoch [{}/{}] Step [{}/{}]: class_loss={:.6f} CORAL_loss={:.6f}"
-                      " loss={:.6f} batch time={:.5f}"
+                print("Epoch [{}/{}] Step [{}/{}]: class_loss={:.6f} CORAL_loss={:.6f} "
+                      "DAN_loss={:.6f} loss={:.6f} batch time={:.5f}"
                       .format(epoch + 1, params.num_epochs_pre,
                               step + 1, len_data_loader,
                               class_loss.data[0], CORAL_loss.data[0],
+                              DAN_loss.data[0],
                               loss.data[0], batch_time))
                 info = {"train_loss": loss.data[0],
                         'class_loss': class_loss.data[0],
-                        'coral_loss': CORAL_loss.data[0]}
+                        'coral_loss': CORAL_loss.data[0],
+                        'DAN_loss': DAN_loss.data[0]}
                 for tag, value in info.items():
                     logger.scalar_summary(tag=tag, value=value, step=total_step)
 
@@ -157,3 +164,32 @@ def CORAL(source, target):
     loss = loss / (4 * d * d)
 
     return loss
+
+def guassian_kernel(source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None):
+    n_samples = int(source.size()[0])+int(target.size()[0])
+    total = torch.cat([source, target], dim=0)
+    total0 = total.unsqueeze(0).expand(int(total.size(0)), int(total.size(0)), int(total.size(1)))
+    total1 = total.unsqueeze(1).expand(int(total.size(0)), int(total.size(0)), int(total.size(1)))
+    L2_distance = ((total0-total1)**2).sum(2)
+    if fix_sigma:
+        bandwidth = fix_sigma
+    else:
+        bandwidth = torch.sum(L2_distance.data) / (n_samples**2-n_samples)
+    bandwidth /= kernel_mul ** (kernel_num // 2)
+    bandwidth_list = [bandwidth * (kernel_mul**i) for i in range(kernel_num)]
+    kernel_val = [torch.exp(-L2_distance / bandwidth_temp) for bandwidth_temp in bandwidth_list]
+    return sum(kernel_val) #/len(kernel_val)
+
+
+def DAN(source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None):
+    batch_size = int(source.size()[0])
+    kernels = guassian_kernel(source, target,
+        kernel_mul=kernel_mul, kernel_num=kernel_num, fix_sigma=fix_sigma)
+
+    loss = 0
+    for i in range(batch_size):
+        s1, s2 = i, (i+1)%batch_size
+        t1, t2 = s1+batch_size, s2+batch_size
+        loss += kernels[s1, s2] + kernels[t1, t2]
+        loss -= kernels[s1, t2] + kernels[s2, t1]
+    return loss / float(batch_size)
