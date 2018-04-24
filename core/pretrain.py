@@ -10,8 +10,6 @@ import time
 from utils import make_variable, save_model, cal_confusion_mat
 from logger import Logger
 
-
-
 def train_src(encoder, classifier, src_data_loader, tgt_data_loader):
     """Train classifier for source domain."""
     ####################
@@ -61,6 +59,7 @@ def train_src(encoder, classifier, src_data_loader, tgt_data_loader):
             DAN_loss_fc2 = DAN(preds_src, preds_tgt)
             DAN_loss_fc1 = DAN(feat_src, feat_tgt)
             DAN_loss = (DAN_loss_fc2 + DAN_loss_fc1) / 2.0
+            # DAN_loss = DAN_loss_fc2
 
             # loss = class_loss + CORAL_loss * params.CORAL_weight
             loss = class_loss + DAN_loss * params.DAN_weight
@@ -141,11 +140,10 @@ def eval_src(encoder, classifier, data_loader):
         label_[i] = con_matrix[i, i] / float(label_[i])
 
     print("Avg Loss = {}, Avg Accuracy = {:2%}".format(loss, acc))
-    print(con_matrix)
-    print("pred recall:{}".format(pred_.unsqueeze(dim=1).t()))
-    print("class accuracy:{}".format(label_.unsqueeze(dim=1).t()))
+    # print(con_matrix)
+    # print("pred recall:{}".format(pred_.unsqueeze(dim=1).t()))
+    # print("class accuracy:{}".format(label_.unsqueeze(dim=1).t()))
     return loss, acc
-
 
 def CORAL(source, target):
     d = source.data.shape[1]
@@ -180,8 +178,26 @@ def guassian_kernel(source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None
     kernel_val = [torch.exp(-L2_distance / bandwidth_temp) for bandwidth_temp in bandwidth_list]
     return sum(kernel_val) #/len(kernel_val)
 
-
 def DAN(source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None):
+    m = int(source.size()[0])
+    n = int(target.size()[0])
+    kernels = guassian_kernel(source, target,
+        kernel_mul=kernel_mul, kernel_num=kernel_num, fix_sigma=fix_sigma)
+
+    kernels_x = kernels[0:m, 0:m]
+    kernels_y = kernels[m:m+n, m:m+n]
+    kernels_xy = kernels[0:m, m:m+n]
+    # loss_x = torch.sum(kernels_x) - kernels_x.trace()
+    # loss_y = torch.sum(kernels_y) - kernels_y.trace()
+    # loss_xy = torch.sum(kernels_xy)
+    # loss = loss_x/float(m*(m-1)) + loss_y/float(n*(n-1)) - 2*loss_xy/float(m*n)
+    loss_x = torch.mean(kernels_x)
+    loss_y = torch.mean(kernels_y)
+    loss_xy = torch.mean(kernels_xy)
+    loss = loss_x + loss_y - 2*loss_xy
+    return loss
+
+def DAN_official(source, target, kernel_mul=2.0, kernel_num=5, fix_sigma=None):
     batch_size = int(source.size()[0])
     kernels = guassian_kernel(source, target,
         kernel_mul=kernel_mul, kernel_num=kernel_num, fix_sigma=fix_sigma)

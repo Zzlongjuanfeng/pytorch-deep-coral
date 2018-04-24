@@ -1,4 +1,4 @@
-"""Main script for ADDA."""
+"""Main script for DeepCORAL."""
 import os
 import params
 from core import eval_src, train_src
@@ -6,7 +6,7 @@ from models import Discriminator, Classifier, ResNet34Encoder
 from utils import get_data_loader, init_model, init_random_seed
 from datasets.visda import get_visda
 
-os.environ["CUDA_VISIBLE_DEVICES"] = '1,0'
+os.environ["CUDA_VISIBLE_DEVICES"] = '0,1'
 
 if __name__ == '__main__':
     # init random seed

@@ -25,7 +25,7 @@ log_step_pre = 20
 eval_epoch_pre = 2
 save_epoch_pre = 2
 
-model_root = 'snapshots/0412_dan'
+model_root = 'snapshots/0424_dan_2fc_sum2'
 manual_seed = None
 
 # params for optimizing models
